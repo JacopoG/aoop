@@ -1,0 +1,11 @@
+{
+    "name": "Arduino-OOP",
+    "version": "1.0.0",
+    "keywords": "arduino,oop",
+    "description": "Arduino core features as classes.",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/JacopoG/aoop.git"
+    }
+}
+
