@@ -5,9 +5,10 @@ class Actuator {
 
 
 
-    void init (int _pin) {
+    void init (int _pin, bool voltage = LOW) {
       pin = _pin;
       pinMode(pin, OUTPUT);
+      set(voltage);
     }
 
 
