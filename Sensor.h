@@ -1,9 +1,10 @@
-void SensorFakeCallback () {
-}
-
 class Sensor;
 
-typedef (*sensorCallback)(Sensor);
+void SensorFakeCallback (Sensor* fake) {
+}
+
+
+typedef void (*sensorCallback)(Sensor*);
 
 class Sensor {
 
@@ -51,14 +52,14 @@ class Sensor {
     void run () {
       bool newStatus = getStatus();
       if (pastStatus != newStatus) {
-        onChangeStatusCallback(*this);
+        onChangeStatusCallback(this);
 
         if (newStatus == HIGH) {
-          onHighCallback(*this);
+          onHighCallback(this);
         }
 
         if (newStatus == LOW) {
-          onLowCallback(*this);
+          onLowCallback(this);
         }
       }
 
