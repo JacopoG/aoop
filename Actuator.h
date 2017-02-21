@@ -19,7 +19,7 @@ class Actuator {
 
 
 
-    void toggle () {
+    bool toggle () {
       bool newVoltage = ! digitalRead(pin);
       set(newVoltage);
       return newVoltage;
