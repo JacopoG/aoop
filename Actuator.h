@@ -17,4 +17,12 @@ class Actuator {
       digitalWrite(pin, voltage);
     }
 
+
+
+    void toggle () {
+      bool newVoltage = ! digitalRead(pin);
+      set(newVoltage);
+      return newVoltage;
+    }
+
 };
