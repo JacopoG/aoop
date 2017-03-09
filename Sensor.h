@@ -45,7 +45,7 @@ class Sensor {
 
     bool getStatus () {
       return digitalRead(pin);
-    }
+    };
 
 
 
