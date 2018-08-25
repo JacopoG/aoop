@@ -1,3 +1,5 @@
+#include <MFRC522.h>
+
 /*
  * Typical pin layout used:
  * -----------------------------------------------------------------------------------------
@@ -14,52 +16,107 @@
 
 
 
-#include <EventManager.h>
-#include <MFRC522.h>
+typedef struct Tag {
+    uint8_t* uid;
+    uint8_t size;
+} Tag;
 
+
+
+
+typedef struct TagAction {
+    Tag tag;
+    void (*action)(void);
+} TagAction;
+
+
+
+//bool PCD_PerformSelfTest();
 
 
 class RFID {
 
+    public:
 
-
-    static int NEW_TAG_EVENT = 522;
-    bool isListening = false;
-
-
+    bool isRunning = true;
 
     MFRC522 mfrc522;
-    
 
-    EventManager& eventManager;
+    TagAction* TagActionList;
+
+    uint8_t TagActionListSize;
 
 
 
-    void init (int SDA, int RST, EventManager& _eventManager) {
-        eventManager = _eventManager;
+    void setup (uint8_t SDA, uint8_t RST, TagAction* _TagActionList, uint8_t _TagActionListSize) {
+
+        TagActionList = _TagActionList;
+        TagActionListSize = _TagActionListSize;
+
         mfrc522.PCD_Init(SDA, RST);
         mfrc522.PCD_DumpVersionToSerial();
+        //mfrc522.PCD_PerformSelfTest();
     };
 
 
 
     void run () {
-        if ( isListening && mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial() ) {
-            eventManager.queueEvent(RFID::NEW_TAG_EVENT, TAG_RFID(RFID); //this
+        Tag tag;
+
+        if ( isRunning && mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial() ) {
+
+            getReadedTag( &tag );
+
+            Serial.println("Found new tag, searching for matches...");
+            Serial.print("\tTag size: ");
+            Serial.println(tag.size);
+            Serial.print("\tTag uid: ");
+            dump_byte_array(tag.uid, tag.size); Serial.println();
+            Serial.println();
+
+            for ( uint8_t i; i < TagActionListSize; i = i + 1 ) {
+
+                Serial.print( "\tCompare to: " );
+                dump_byte_array( TagActionList[i].tag.uid, TagActionList[i].tag.size ); Serial.println();
+                Serial.print("\tResult: ");
+                Serial.println(memcmp( tag.uid, TagActionList[i].tag.uid, TagActionList[i].tag.size ));
+
+                if ( memcmp( tag.uid, TagActionList[i].tag.uid, TagActionList[i].tag.size ) == 0 ) {
+
+                    Serial.println();
+                    Serial.print("Match found! Call action ");
+                    Serial.println(i);
+
+                    TagActionList[i].action();
+
+                }
+
+                Serial.println();
+
+            }
+
         }
 
     };
 
 
 
-    void listenOff () {
-        isListening = false;
+    void getReadedTag ( Tag* tag ) {
+        //memcpy(tag->uid, mfrc522.uid.uidByte, 2);
+        tag->uid = mfrc522.uid.uidByte;
+        tag->size = mfrc522.uid.size;
+    }
+
+
+
+    void runningOff () {
+        isRunning = false;
     };
 
 
 
-    void listenOn () {
-        isListening = true;
+    void runningOn () {
+        isRunning = true;
     };
 
 
@@ -76,29 +133,66 @@ class RFID {
 
 
 
-}
-
-
-
-class TAG_RFID {
-
-    MFRC522& mfrc522;
-
-
-
-    TAG_RFID (MFRC522& _mfrc522) {
-        mfrc522 = *_mfrc522;
+    void dump_byte_array(byte *buffer, byte bufferSize) {
+        for (byte i = 0; i < bufferSize; i++) {
+            Serial.print(buffer[i] < 0x10 ? " 0" : " ");
+            Serial.print(buffer[i], HEX);
+        }
     }
 
 
-
-    byte* getId () {
-        return mfrc522.uid.uidByte;
-    };
+};
 
 
+template < int RFIDS_COUNT >
 
-}
+class RFIDs_Manager {
 
+    RFID rfids[RFIDS_COUNT];
 
+    uint8_t rfids_count = RFIDS_COUNT;
 
+    uint8_t* PINS_SDA;
+
+    uint8_t PIN_RST;
+
+    TagAction* TagActionList;
+
+    uint8_t TagActionListSize;
+
+    public:
+
+        void setup(uint8_t _pins_sda[], uint8_t pin_rst, TagAction* _TagActionList, uint8_t _TagActionListSize) {
+
+            PINS_SDA = _pins_sda;
+            PIN_RST = pin_rst;
+            TagActionList = _TagActionList;
+            TagActionListSize = _TagActionListSize;
+
+            Serial.print("Begin to setup ");
+            Serial.print( getRFIDsCount() );
+            Serial.println(" rfid(s)");
+            for ( uint8_t i = 0; i < getRFIDsCount(); i = i + 1 ) {
+                Serial.println(PIN_RST);
+                Serial.println(PINS_SDA[i]);
+                rfids[i].setup(PINS_SDA[i], PIN_RST, TagActionList, TagActionListSize);
+                rfids[i].switchAntennaOff();
+            }
+
+        }
+
+        void run () {
+
+            for (uint8_t i = 0; i < getRFIDsCount(); i = i + 1) {
+                rfids[i].switchAntennaOn();
+                rfids[i].run();
+                rfids[i].switchAntennaOff();
+            }
+
+        }
+
+        uint8_t getRFIDsCount () {
+            return rfids_count;
+            //return sizeof PINS_SDA / sizeof (uint8_t);
+        }
+};
