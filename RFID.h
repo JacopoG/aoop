@@ -30,6 +30,13 @@ typedef struct TagAction {
     void (*action)(void);
 } TagAction;
 
+/*
+TagAction tagActionList[] = {
+    { .tag = { .uid = TAG_UID_1, .size = sizeof TAG_UID_1 }, .action = f },
+    { .tag = { .uid = TAG_UID_2, .size = sizeof TAG_UID_1 }, .action = g },
+    { .tag = { .uid = TAG_UID_3, .size = sizeof TAG_UID_3 }, .action = h },
+};
+*/
 
 
 //bool PCD_PerformSelfTest();
@@ -284,6 +291,7 @@ class RFIDs_Manager {
             return rfids;
         }
 
+        //rfids.setTagActionLists( tagActionList, sizeof tagActionList / sizeof (TagAction) );
         void setTagActionLists ( TagAction* t, uint8_t size ) {
 
             for ( uint8_t i = 0; i < getRFIDsCount(); i = i + 1 ) {
@@ -302,6 +310,7 @@ class RFIDs_Manager {
 
 
 
+        //rfids.setOnNewCardHandlers( setOnNewCardHandlers , sizeof setOnNewCardHandlers / sizeof (void(*)(void)) );
         void setOnNewCardHandlers ( void (*func[])(void), uint8_t size ) {
 
             pre(); Serial.println( "set " + String(size) + " onNewCardHandler(s)." );
