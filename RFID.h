@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include <MFRC522.h>
 
 /*
@@ -42,21 +43,60 @@ class RFID {
 
     MFRC522 mfrc522;
 
-    TagAction* TagActionList;
+    TagAction* TagActionList = NULL;
 
     uint8_t TagActionListSize;
 
+    void (*onNewCardHandler)(void) = NULL;
+
+    uint8_t PIN_SDA;
+
+    uint8_t PIN_RST;
 
 
-    void setup (uint8_t SDA, uint8_t RST, TagAction* _TagActionList, uint8_t _TagActionListSize) {
 
-        TagActionList = _TagActionList;
-        TagActionListSize = _TagActionListSize;
+    void setup (uint8_t _pin_sda, uint8_t _pin_rst) {
 
-        mfrc522.PCD_Init(SDA, RST);
-        mfrc522.PCD_DumpVersionToSerial();
+        PIN_SDA = _pin_sda;
+        PIN_RST = _pin_rst;
+
+        mfrc522.PCD_Init(PIN_SDA, PIN_RST);
+        pre(); mfrc522.PCD_DumpVersionToSerial();
         //mfrc522.PCD_PerformSelfTest();
     };
+
+
+
+    bool readTag ( Tag buffer ) {
+
+        clearTagUid( buffer );
+        long unsigned int timer = millis();
+
+        // unlock when there is a Card or timeout
+        while ( millis() - timer < 1000
+                && (!isRunning || !mfrc522.PICC_IsNewCardPresent() || !mfrc522.PICC_ReadCardSerial() ) ) {}
+
+        //timeout
+        if ( !( millis() - timer < 1000 ) ) {
+            return false;
+        }
+        else {
+            uint16_t size = min( buffer.size, mfrc522.uid.size );
+            memcpy(buffer.uid, mfrc522.uid.uidByte, size);
+
+            return true;
+        }
+
+    }
+
+
+    void clearTagUid ( Tag buffer ) {
+
+        for ( uint8_t i; i < buffer.size; i = i + 1 ) {
+            buffer.uid[i] = 0x00;
+        }
+
+    }
 
 
 
@@ -67,31 +107,46 @@ class RFID {
 
             getReadedTag( &tag );
 
-            Serial.println("Found new tag, searching for matches...");
-            Serial.print("\tTag size: ");
-            Serial.println(tag.size);
-            Serial.print("\tTag uid: ");
-            dump_byte_array(tag.uid, tag.size); Serial.println();
-            Serial.println();
+            pre(); Serial.println("found new tag!");
+            pre(); Serial.print("\tTag size: ");
+                   Serial.println(tag.size);
+            pre(); Serial.print("\tTag uid: ");
+                   dump_byte_array(tag.uid, tag.size);
+                   Serial.println();
 
-            for ( uint8_t i; i < TagActionListSize; i = i + 1 ) {
-
-                Serial.print( "\tCompare to: " );
-                dump_byte_array( TagActionList[i].tag.uid, TagActionList[i].tag.size ); Serial.println();
-                Serial.print("\tResult: ");
-                Serial.println(memcmp( tag.uid, TagActionList[i].tag.uid, TagActionList[i].tag.size ));
-
-                if ( memcmp( tag.uid, TagActionList[i].tag.uid, TagActionList[i].tag.size ) == 0 ) {
-
-                    Serial.println();
-                    Serial.print("Match found! Call action ");
-                    Serial.println(i);
-
-                    TagActionList[i].action();
-
-                }
+            if (onNewCardHandler) {
+                pre(); Serial.println("Call onNewCard()");
 
                 Serial.println();
+                onNewCardHandler();
+                Serial.println();
+            }
+
+            if ( TagActionList ) {
+
+                pre(); Serial.println("searching for matches...");
+
+                for ( uint8_t i; i < TagActionListSize; i = i + 1 ) {
+
+                    pre(); Serial.print( "\tCompare to: " );
+                    dump_byte_array( TagActionList[i].tag.uid, TagActionList[i].tag.size );
+                    Serial.println();
+                    pre(); Serial.print("\tResult: ");
+                    Serial.println(memcmp( tag.uid, TagActionList[i].tag.uid, TagActionList[i].tag.size ));
+
+                    if ( memcmp( tag.uid, TagActionList[i].tag.uid, TagActionList[i].tag.size ) == 0 ) {
+
+                        //Serial.println();
+                        pre(); Serial.print("Match found! Call action ");
+                        Serial.println(i);
+
+                        Serial.println();
+                        TagActionList[i].action();
+                        Serial.println();
+
+                    }
+
+                }
 
             }
 
@@ -133,13 +188,31 @@ class RFID {
 
 
 
-    void dump_byte_array(byte *buffer, byte bufferSize) {
+    static void dump_byte_array(byte *buffer, byte bufferSize) {
         for (byte i = 0; i < bufferSize; i++) {
             Serial.print(buffer[i] < 0x10 ? " 0" : " ");
             Serial.print(buffer[i], HEX);
         }
     }
 
+
+
+    void setTagActionList ( TagAction* t, uint8_t size ) {
+        TagActionList = t;
+        TagActionListSize = size;
+    }
+
+
+    void pre () {
+        Serial.print(whoami());
+        Serial.print(": ");
+    }
+
+
+
+    String whoami () {
+        return "RFID on pin " + String(PIN_SDA);
+    }
 
 };
 
@@ -162,21 +235,17 @@ class RFIDs_Manager {
 
     public:
 
-        void setup(uint8_t _pins_sda[], uint8_t pin_rst, TagAction* _TagActionList, uint8_t _TagActionListSize) {
+        void setup(uint8_t _pins_sda[], uint8_t pin_rst) {
 
             PINS_SDA = _pins_sda;
             PIN_RST = pin_rst;
-            TagActionList = _TagActionList;
-            TagActionListSize = _TagActionListSize;
 
-            Serial.print("Begin to setup ");
-            Serial.print( getRFIDsCount() );
-            Serial.println(" rfid(s)");
+            pre(); Serial.print("Begin to setup ");
+                   Serial.print( getRFIDsCount() );
+                   Serial.println(" rfid(s)");
             for ( uint8_t i = 0; i < getRFIDsCount(); i = i + 1 ) {
-                Serial.println(PIN_RST);
-                Serial.println(PINS_SDA[i]);
-                rfids[i].setup(PINS_SDA[i], PIN_RST, TagActionList, TagActionListSize);
-                rfids[i].switchAntennaOff();
+                rfids[i].setup(PINS_SDA[i], PIN_RST);
+                //rfids[i].switchAntennaOff();
             }
 
         }
@@ -184,15 +253,76 @@ class RFIDs_Manager {
         void run () {
 
             for (uint8_t i = 0; i < getRFIDsCount(); i = i + 1) {
+                //Serial.print("Switch antenna ON of RFID ");
+                //Serial.print(i);
+
                 rfids[i].switchAntennaOn();
                 rfids[i].run();
                 rfids[i].switchAntennaOff();
+
+                //Serial.print("Switch antenna OFF of RFID ");
+                //Serial.println(i);
             }
 
         }
+
+
 
         uint8_t getRFIDsCount () {
             return rfids_count;
             //return sizeof PINS_SDA / sizeof (uint8_t);
         }
+
+
+
+        RFID getRFID ( uint8_t i ) {
+            return rfids[i];
+        }
+
+
+        RFID* getRFIDs () {
+            return rfids;
+        }
+
+        void setTagActionLists ( TagAction* t, uint8_t size ) {
+
+            for ( uint8_t i = 0; i < getRFIDsCount(); i = i + 1 ) {
+                rfids[i].setTagActionList(t, size);
+            }
+
+        }
+
+        void setOnNewCardHandlers ( void (*func)(void) ) {
+
+            for ( uint8_t i = 0; i < getRFIDsCount(); i = i + 1 ) {
+                rfids[i].onNewCardHandler = func;
+            }
+
+        }
+
+
+
+        void setOnNewCardHandlers ( void (*func[])(void), uint8_t size ) {
+
+            pre(); Serial.println( "set " + String(size) + " onNewCardHandler(s)." );
+
+            for ( uint8_t i = 0; i < getRFIDsCount(); i = i + 1 ) {
+                rfids[i].onNewCardHandler = func[i];
+            }
+
+        }
+
+
+
+        void pre () {
+            Serial.print(whoami());
+            Serial.print(": ");
+        }
+
+
+
+        String whoami () {
+            return "RFIDs manager";
+        }
+
 };
