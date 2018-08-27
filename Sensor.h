@@ -1,7 +1,9 @@
+#include <Arduino.h>
+
 class Sensor;
 
-void SensorFakeCallback (Sensor* fake) {
-}
+/*void SensorFakeCallback (Sensor* fake) {
+}*/
 
 
 typedef void (*sensorCallback)(Sensor*);
@@ -14,9 +16,9 @@ class Sensor {
 
     int pin;
 
-    sensorCallback onHighCallback;
+    sensorCallback onHighCallback = NULL;
 
-    sensorCallback onLowCallback;
+    sensorCallback onLowCallback = NULL;
 
     sensorCallback onChangeStatusCallback;
 
@@ -36,9 +38,9 @@ class Sensor {
 
       pastStatus = getStatus();
 
-      onHighCallback = SensorFakeCallback;
-      onLowCallback = SensorFakeCallback;
-      onChangeStatusCallback = SensorFakeCallback;
+      //onHighCallback = SensorFakeCallback;
+      //onLowCallback = SensorFakeCallback;
+      //onChangeStatusCallback = SensorFakeCallback;
     };
 
 
@@ -52,14 +54,20 @@ class Sensor {
     void run () {
       bool newStatus = getStatus();
       if (pastStatus != newStatus) {
-        onChangeStatusCallback(this);
+          if (onChangeStatusCallback) {
+              onChangeStatusCallback(this);
+          }
 
         if (newStatus == HIGH) {
-          onHighCallback(this);
+            if (onHighCallback) {
+                onHighCallback(this);
+            }
         }
 
         if (newStatus == LOW) {
-          onLowCallback(this);
+            if (onLowCallback) {
+                onLowCallback(this);
+            }
         }
       }
 
