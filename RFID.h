@@ -75,6 +75,9 @@ class RFID {
 
 
     bool readTag ( Tag buffer ) {
+        bool success = false;
+
+        switchAntennaOn();
 
         clearTagUid( buffer );
         long unsigned int timer = millis();
@@ -85,15 +88,17 @@ class RFID {
 
         //timeout
         if ( !( millis() - timer < 1000 ) ) {
-            return false;
+            success = false;
         }
         else {
             uint16_t size = min( buffer.size, mfrc522.uid.size );
             memcpy(buffer.uid, mfrc522.uid.uidByte, size);
 
-            return true;
+            success = true;
         }
 
+        switchAntennaOff();
+        return success;
     }
 
 
@@ -252,7 +257,7 @@ class RFIDs_Manager {
                    Serial.println(" rfid(s)");
             for ( uint8_t i = 0; i < getRFIDsCount(); i = i + 1 ) {
                 rfids[i].setup(PINS_SDA[i], PIN_RST);
-                //rfids[i].switchAntennaOff();
+                rfids[i].switchAntennaOff();
             }
 
         }
